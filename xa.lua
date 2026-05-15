@@ -1,6 +1,3 @@
--- ==========================================
--- COMMUNITY CHECK BYPASSED
--- ==========================================
 if getgenv().executed then return end 
 getgenv().executed = true
 
@@ -344,14 +341,6 @@ local Settings = {
     },
 }
 
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-
-local Options = Library.Options
-local Toggles = Library.Toggles
-
 local ItemsToolkit = {} 
 
 ItemsToolkit.GetAllItems = LPH_JIT(function()
@@ -412,7 +401,6 @@ Utils.IsInBounds = LPH_JIT(function(position)
     local boundaryCenter = Vector3.new(-chunkSize / 2, 0, -chunkSize / 2)
     local distanceFromCenter = (Vector2.new(position.X, position.Z) - Vector2.new(boundaryCenter.X, boundaryCenter.Z)).Magnitude
     
-
     local level = Utils.GetLightSourceLevel()
     local maxLevel = level == 0 and 1 or level
     local maxRadius = (MapGenerationConfig.Levels[maxLevel] * MapGenerationConfig.ChunkSize + (MapGenerationConfig.Levels[maxLevel] - 1) * MapGenerationConfig.ChunkSpacing) / 2
@@ -518,7 +506,8 @@ ItemModule.BringItems = LPH_JIT(function(self, itemNames, amount)
     local totalHeight = 0
     local forwardOffset = 5
 
-    for itemName in itemNames do
+    for itemName, enabled in pairs(itemNames) do
+        if not enabled then continue end
         local items = Utils.GetItemsByName(itemName)
 
         for i = 1, amount or #items do
@@ -544,7 +533,7 @@ ItemModule.TeleportToProcessor = LPH_JIT(function(self, items, processorType, do
     local totalHeight = 0
     local stackOffset = 5
 
-    for _, item in items do
+    for _, item in ipairs(items) do
         task.spawn(function()
             local height = item:GetExtentsSize().Y
             local position = targetPosition + Vector3.new(0, height/2 + totalHeight + stackOffset, 0)
@@ -558,9 +547,9 @@ end)
 
 ItemModule.TeleportItemsByName = LPH_JIT(function(self, itemNames, processorType)
     local allItems = {}
-    for itemName in itemNames do
+    for _, itemName in ipairs(itemNames) do
         local items = Utils.GetItemsByName(itemName)
-        for _, item in items do
+        for _, item in ipairs(items) do
             table.insert(allItems, item)
         end
     end
@@ -579,7 +568,6 @@ TeleportModule.TeleportPlayer = LPH_NO_VIRTUALIZE(function(self, location)
         character:PivotTo(targetPart.CFrame + Vector3.new(0, 5, 0))
     end
 end)
-
 
 local FarmBase = {}
 FarmBase.__index = FarmBase
@@ -744,6 +732,7 @@ end)
 AutoFarmModule.ShouldContinueFarming = LPH_JIT_MAX(function(self)
     return Settings.AutoFarmEnabled or Settings.AutoFarmClosestEnabled
 end)
+
 local AutoEatModule = {
     _trove = Trove.new(),
     _isEating = false,
@@ -767,7 +756,7 @@ AutoEatModule.FindClosestConsumable = LPH_JIT(function(self)
     local closestConsumable = nil
     local closestDistance = math.huge
     
-    for _, consumable in consumables do
+    for _, consumable in ipairs(consumables) do
         local distance = (consumable:GetPivot().Position - rootPart.Position).Magnitude
         if distance < closestDistance then
             closestDistance = distance
@@ -823,10 +812,6 @@ local AutoCraftModule = {
 MainTrove:Add(AutoCraftModule._trove)
 
 function AutoCraftModule:UpdateStatus(text)
-    if Library and Library.Labels and Library.Labels.AutoCraftStatus then
-        print(text)
-        Library.Labels.AutoCraftStatus:SetText(text)
-    end 
 end
 
 AutoCraftModule.GetRecipeMaterials = LPH_JIT_MAX(function(self, itemName)
@@ -866,7 +851,7 @@ AutoCraftModule.GetAvailableMaterialCount = LPH_JIT(function(self, materialName)
     local totalCount = #directMaterials
     
     local byproductItems = self:GetByproductItems(materialName)
-    for _, byproductData in byproductItems do
+    for _, byproductData in ipairs(byproductItems) do
         totalCount = totalCount + byproductData.value
     end
     
@@ -876,11 +861,11 @@ end)
 AutoCraftModule.GetEntityDrops = LPH_JIT(function(self, materialName, checkByproducts)
     local droppingEntities = {}
     
-    for entityName, entityData in BackupData.Entities do
+    for entityName, entityData in pairs(BackupData.Entities) do
         if Utils.IsEntityImmune(entityName) then continue end
    
         if entityData and entityData.LootPool then
-            for lootName, loot in entityData.LootPool do                
+            for lootName, loot in pairs(entityData.LootPool) do                
                 local matches = false
                 
                 if not checkByproducts then
@@ -902,14 +887,14 @@ end)
 
 AutoCraftModule.FindAvailableEntity = LPH_JIT(function(self, materialName)
     local directDroppers = self:GetEntityDrops(materialName, false)
-    for _, entityName in directDroppers do
+    for _, entityName in ipairs(directDroppers) do
         if Utils.EntityExistsInMap(entityName) then
             return entityName, false
         end
     end
     
     local byproductDroppers = self:GetEntityDrops(materialName, true)
-    for _, entityName in byproductDroppers do
+    for _, entityName in ipairs(byproductDroppers) do
         if Utils.EntityExistsInMap(entityName) then
             return entityName, true
         end
@@ -1019,7 +1004,7 @@ AutoCraftModule.BringMaterialsToProcessor = LPH_JIT(function(self, materialName,
     )
     
     local directMaterials = Utils.GetItemsByName(materialName)
-    for _, item in directMaterials do
+    for _, item in ipairs(directMaterials) do
         if materialValue >= amount then break end
         
         task.spawn(function()
@@ -1035,7 +1020,7 @@ AutoCraftModule.BringMaterialsToProcessor = LPH_JIT(function(self, materialName,
     
     if materialValue < amount then
         local byproductItems = self:GetByproductItems(materialName)
-        for _, byproductData in byproductItems do
+        for _, byproductData in ipairs(byproductItems) do
             if materialValue >= amount then break end
             
             task.spawn(function()
@@ -1055,7 +1040,7 @@ end)
 
 AutoCraftModule.GetMaterials = LPH_JIT_MAX(function(self)
     local materials = {}
-    for _, material in PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Resources:GetChildren() do 
+    for _, material in ipairs(PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Resources:GetChildren()) do 
         if not material:IsA("Frame") then continue end
         materials[material.Name] = tonumber(material.Amount.Text)
     end
@@ -1064,9 +1049,9 @@ end)
 
 AutoCraftModule.GetStock = LPH_JIT_MAX(function(self)
     local stock = {}
-    for _, tier in PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Items:GetChildren() do 
+    for _, tier in ipairs(PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Items:GetChildren()) do 
         if not tier:IsA("Frame") then continue end
-        for _, item in tier.Items:GetChildren() do 
+        for _, item in ipairs(tier.Items:GetChildren()) do 
 		    if not item:IsA("ImageButton") then continue end
             stock[item.Name] = tonumber(item.Content.Stock.StockLabel.Text:match("%d+"))
         end
@@ -1076,11 +1061,11 @@ end)
 
 AutoCraftModule.GetTier = LPH_JIT_MAX(function(self)
     local highestTier = 0
-    for _, tierFrame in PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Items:GetChildren() do 
+    for _, tierFrame in ipairs(PlayerGui.CraftingMenu.Main.GenericBackground.Glow.Background.LeftPanel.Items:GetChildren()) do 
         if not tierFrame:IsA("Frame") then continue end    
         local tierNum = tonumber(tierFrame.Name:match("%d+"))
         if not tierNum then continue end   
-        for _, item in tierFrame.Items:GetChildren() do 
+        for _, item in ipairs(tierFrame.Items:GetChildren()) do 
             if not item:IsA("ImageButton") then continue end       
             local hiddenFrame = item:FindFirstChild("Hidden")
             if hiddenFrame and hiddenFrame.Visible then
@@ -1134,7 +1119,7 @@ AutoCraftModule.HasEnoughMaterialsAtBench = LPH_JIT(function(self, itemName)
     local recipe = self:GetRecipeMaterials(itemName)
     if not recipe then return false end
     
-    for materialName, requiredAmount in recipe do
+    for materialName, requiredAmount in pairs(recipe) do
         local availableAmount = data.materials[materialName] or 0
         if availableAmount < requiredAmount then
             return false, materialName, availableAmount, requiredAmount
@@ -1171,7 +1156,7 @@ AutoCraftModule.CollectExistingItems = LPH_JIT(function(self, materialName)
     local byproductItems = self:GetByproductItems(materialName)
     if #byproductItems > 0 then
         local items = {}
-        for _, data in byproductItems do
+        for _, data in ipairs(byproductItems) do
             table.insert(items, data.item)
         end
         ItemModule:TeleportToProcessor(items, "MaterialProcessor")
@@ -1331,7 +1316,7 @@ function AutoCraftModule:ProcessCraftingQueue()
     
     self._craftingInProgress = true
     
-    for itemName, enabled in Settings.SelectedCraftItems do
+    for itemName, enabled in pairs(Settings.SelectedCraftItems) do
         if not enabled or not Settings.AutoCraftEnabled then continue end
         
         local canCraft, stockInfo = self:CanCraftItem(itemName)
@@ -1371,7 +1356,7 @@ function AutoCraftModule:ProcessCraftingQueue()
         local benchData = self:GetCraftingBenchData()
         local missingMaterials = {}
         
-        for materialName, requiredAmount in materials do
+        for materialName, requiredAmount in pairs(materials) do
             local atBench = (benchData.materials[materialName] or 0)
             local inWorld = self:GetAvailableMaterialCount(materialName)
             local totalAvailable = atBench + inWorld
@@ -1390,7 +1375,7 @@ function AutoCraftModule:ProcessCraftingQueue()
             TeleportModule:TeleportPlayer("MaterialProcessor")
             task.wait(0.3)
             
-            for materialName, requiredAmount in materials do
+            for materialName, requiredAmount in pairs(materials) do
                 self:BringMaterialsToProcessor(materialName, requiredAmount)
             end
             
@@ -1398,7 +1383,7 @@ function AutoCraftModule:ProcessCraftingQueue()
             self:CraftItem(itemName)
             task.wait(0.3)
         else
-            for materialName, amountNeeded in missingMaterials do
+            for materialName, amountNeeded in pairs(missingMaterials) do
                 if not Settings.AutoCraftEnabled then break end
                 
                 self:GatherMissingMaterial(materialName, amountNeeded)
@@ -1433,11 +1418,11 @@ MainTrove:Add(ChestModule._trove)
 
 ChestModule.SetInstantOpen = LPH_NO_VIRTUALIZE(function(self, enabled)
     if enabled then
-        for _, chest in CollectionService:GetTagged("Chest") do 
+        for _, chest in ipairs(CollectionService:GetTagged("Chest")) do 
             self:SetChestInstant(chest, true)
         end
     else
-        for _, chest in CollectionService:GetTagged("Chest") do 
+        for _, chest in ipairs(CollectionService:GetTagged("Chest")) do 
             self:SetChestInstant(chest, false)
         end
     end
@@ -1478,7 +1463,7 @@ ChestModule.SetChestInstant = LPH_NO_VIRTUALIZE(function(self, chest, enabled)
 end)
 
 ChestModule.OpenAllChests = LPH_NO_VIRTUALIZE(function(self)
-    for _, chest in CollectionService:GetTagged("Chest") do 
+    for _, chest in ipairs(CollectionService:GetTagged("Chest")) do 
         local prompt = chest:FindFirstChild("ProximityPrompt", true) 
         if not prompt then continue end 
 
@@ -1501,7 +1486,7 @@ ChestModule.OpenAllChests = LPH_NO_VIRTUALIZE(function(self)
 end)
 
 function ChestModule:Init()
-    for _, chest in CollectionService:GetTagged("Chest") do 
+    for _, chest in ipairs(CollectionService:GetTagged("Chest")) do 
         if Settings.InstantOpenChests then
             self:SetChestInstant(chest, true)
         end
@@ -1525,7 +1510,7 @@ local ResidentModule = {}
 
 ResidentModule.GetAllResidents = LPH_JIT(function(self)
     local residents = {}
-    for _, resident in CollectionService:GetTagged("Resident") do
+    for _, resident in ipairs(CollectionService:GetTagged("Resident")) do
         if resident:IsDescendantOf(workspace) then
             table.insert(residents, resident)
         end
@@ -1535,7 +1520,7 @@ end)
 
 ResidentModule.GetResidentsByName = LPH_JIT(function(self, residentName)
     local residents = {}
-    for _, resident in CollectionService:GetTagged("Resident") do
+    for _, resident in ipairs(CollectionService:GetTagged("Resident")) do
         if resident:IsDescendantOf(workspace) then
             local refName = resident:GetAttribute("ReferenceName")
             if refName == residentName then
@@ -1574,7 +1559,8 @@ ResidentModule.BringResidents = LPH_JIT(function(self, residentNames, amount)
     local horizontalSpacing = 6
     local currentIndex = 0
 
-    for residentName in residentNames do
+    for residentName, enabled in pairs(residentNames) do
+        if not enabled then continue end
         local residents = self:GetResidentsByName(residentName)
 
         for i = 1, amount or #residents do
@@ -1604,7 +1590,7 @@ ResidentModule.TeleportToProcessor = LPH_JIT(function(self, residents)
     local horizontalSpacing = 6
     local stackOffset = 5
 
-    for index, resident in residents do
+    for index, resident in ipairs(residents) do
         task.spawn(function()
             local height = resident:GetExtentsSize().Y
             local position = targetPosition 
@@ -1617,9 +1603,10 @@ end)
 
 ResidentModule.TeleportResidentsByName = LPH_JIT(function(self, residentNames)
     local allResidents = {}
-    for residentName in residentNames do
+    for residentName, enabled in pairs(residentNames) do
+        if not enabled then continue end
         local residents = self:GetResidentsByName(residentName)
-        for _, resident in residents do
+        for _, resident in ipairs(residents) do
             table.insert(allResidents, resident)
         end
     end
@@ -1653,7 +1640,7 @@ function MovementModule:Init()
                 [Enum.KeyCode.Space] = Vector3.new(0, 1, 0)
             }
             
-            for Key, Dir in Directions do
+            for Key, Dir in pairs(Directions) do
                 if game:GetService("UserInputService"):IsKeyDown(Key) then
                     Direction = Direction + Dir
                 end
@@ -1681,7 +1668,7 @@ function MovementModule:Init()
                 [Enum.KeyCode.D] = Vector3.new(-LookVector.Z, 0, LookVector.X)
             }
         
-            for Key, Dir in Directions do
+            for Key, Dir in pairs(Directions) do
                 if game:GetService("UserInputService"):IsKeyDown(Key) then
                     Direction = Direction + Dir
                 end
@@ -1708,7 +1695,7 @@ local KillAuraModule = {
 MainTrove:Add(KillAuraModule._trove)
 
 KillAuraModule.GetMelee = LPH_NO_VIRTUALIZE(function(self)
-    for _, melee in CollectionService:GetTagged("MeleeGear") do
+    for _, melee in ipairs(CollectionService:GetTagged("MeleeGear")) do
         local ownerId = melee:GetAttribute("OwnerId")
         if ownerId ~= LocalPlayer.UserId then continue end 
 
@@ -1733,7 +1720,7 @@ KillAuraModule.GetEntitiesInRange = LPH_JIT(function(self, character, range)
     local entities = {}
     local seenEntities = {}
     
-    for _, part in parts do
+    for _, part in ipairs(parts) do
         local current = part.Parent
         local entity = nil
         
@@ -1796,7 +1783,7 @@ KillAuraModule.KillAuraLoop = LPH_JIT(function(self)
         
         lastAttackTime = currentTime
 
-        for _, entity in entities do
+        for _, entity in ipairs(entities) do
             if not entity or not entity.Parent or not entity:GetAttribute("IsAlive") then continue end
             
             local success, pivot = pcall(function() return entity:GetPivot() end)
@@ -1834,7 +1821,7 @@ end)
 HiveModule._targetLevel = HiveModule.GetMaxLevel(HiveModule)
 
 HiveModule.GetMelee = LPH_NO_VIRTUALIZE(function(self)
-    for _, melee in CollectionService:GetTagged("MeleeGear") do
+    for _, melee in ipairs(CollectionService:GetTagged("MeleeGear")) do
         local ownerId = melee:GetAttribute("OwnerId")
         if ownerId ~= LocalPlayer.UserId then continue end 
 
@@ -1888,7 +1875,7 @@ HiveModule.CalculateEntityYield = LPH_JIT(function(self, entityName)
     
     local totalYield = 0
     
-    for lootName, lootData in entityData.LootPool do
+    for lootName, lootData in pairs(entityData.LootPool) do
         local amount = self:ParseAmount(lootData.Amount)
         local chance = lootData.Chance or 1
         
@@ -1908,7 +1895,7 @@ end)
 HiveModule.FindTargetEntities = LPH_JIT(function(self)
     local entityYields = {}
     
-    for entityName, entityData in BackupData.Entities do
+    for entityName, entityData in pairs(BackupData.Entities) do
         if Utils.IsEntityImmune(entityName) then continue end
         
         local yield = self:CalculateEntityYield(entityName)
@@ -1925,7 +1912,7 @@ HiveModule.FindTargetEntities = LPH_JIT(function(self)
     end)
     
     local sortedNames = {}
-    for _, data in entityYields do
+    for _, data in ipairs(entityYields) do
         table.insert(sortedNames, data.name)
     end
     
@@ -1936,7 +1923,7 @@ HiveModule.GetClosestTargetEntity = LPH_JIT(function(self, position)
     local targetEntityNames, entityYields = self:FindTargetEntities()
     
     local yieldMap = {}
-    for _, data in entityYields do
+    for _, data in ipairs(entityYields) do
         yieldMap[data.name] = data.yield
     end
     
@@ -1944,7 +1931,7 @@ HiveModule.GetClosestTargetEntity = LPH_JIT(function(self, position)
     local highestYield = -1
     local closestDistance = math.huge
     
-    for _, entity in CollectionService:GetTagged("Entity") do 
+    for _, entity in ipairs(CollectionService:GetTagged("Entity")) do 
         if not Utils.IsInBounds(entity:GetPivot().Position) then continue end
         if not entity:GetAttribute("IsAlive") then continue end
 
@@ -1973,7 +1960,7 @@ end)
 HiveModule.CollectAndBringJam = LPH_JIT(function(self)
     local jamItems = Utils.GetItemsByName("JellyfishJam")
     
-    for _, item in CollectionService:GetTagged("Interactable") do
+    for _, item in ipairs(CollectionService:GetTagged("Interactable")) do
         local refName = item:GetAttribute("ReferenceName")
         if refName and self:GetByproductValue(refName, "JellyfishJam") > 0 then
             table.insert(jamItems, item)
@@ -2101,503 +2088,365 @@ do
     HiveModule:Init()
 end 
 
-Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = Library:CreateWindow({
-    Title = "Survive Bikini Bottom",
-    Footer = "version: 1.0.1",
+local Window = Rayfield:CreateWindow({
+   Name = "Pradaxca 🌸 | ShenXiue",
+   LoadingTitle = "ShenXiue Subsystem",
+   LoadingSubtitle = "Developer: Prada",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "PradaxcaConfigs",
+      FileName = "BikiniBottomFarm"
+   },
+   Discord = { Enabled = false },
+   KeySystem = false,
 })
 
-local Tabs = {
-	Main = Window:AddTab("Main", "user"),
-	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+local colors = {
+    Color3.fromRGB(255, 105, 180),
+    Color3.fromRGB(20, 20, 20),
 }
 
-local EntityGroupBox = Tabs.Main:AddLeftGroupbox("Entity", "boxes")
+local MainTab = Window:CreateTab("Main", 10012586884)
+local ItemsTab = Window:CreateTab("Items & Residents", 10012497693)
+local CraftTab = Window:CreateTab("Crafting & Misc", 10012495808)
 
-EntityGroupBox:AddToggle("AutoFarmClosestEnabled", {
-    Text = "Auto Kill Closest",
-    Tooltip = "Automatically kill closest entity (any type)",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.AutoFarmClosestEnabled = Value
-        if Value then
-            Settings.AutoFarmEnabled = false
-            Toggles.AutoFarmEnabled:SetValue(false)
-        end
-    end,
+local EntitySection = MainTab:CreateSection("Entity Farming")
+
+MainTab:CreateToggle({
+   Name = "Auto Kill Closest",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.AutoFarmClosestEnabled = Value
+       if Value then Settings.AutoFarmEnabled = false end
+   end,
 })
 
-EntityGroupBox:AddToggle("KillAuraEnabled", {
-    Text = "Kill Aura",
-    Tooltip = "Automatically attack all entities within weapon range",
-    Default = false,
-    
-    Callback = function(Value)
-        KillAuraModule._enabled = Value
-    end,
+MainTab:CreateToggle({
+   Name = "Kill Aura",
+   CurrentValue = false,
+   Callback = function(Value)
+       KillAuraModule._enabled = Value
+   end,
 })
 
 local GetEntities = LPH_JIT_MAX(function()
     local entities = {}
-    
-    for entityName in BackupData.Entities do
-        table.insert(entities, entityName)
-    end
-    
+    for entityName in pairs(BackupData.Entities) do table.insert(entities, entityName) end
     table.sort(entities)
     return entities
 end)
 
-EntityGroupBox:AddDropdown("EntityDropdown", {
-    Values = GetEntities(),
-    Default = 1,
-    Multi = true,
-    Text = "Select Entities to Farm",
-    Tooltip = "Choose which entities to auto farm",
-    Searchable = true,
-    
-    Callback = function(Value)
-        Settings.SelectedEntities = {}
-        for entityName, isSelected in Value do
-            if isSelected then
-                Settings.SelectedEntities[entityName] = true
-            end
-        end
-    end,
+MainTab:CreateDropdown({
+   Name = "Select Entities to Farm",
+   Options = GetEntities(),
+   CurrentOption = {},
+   MultipleOptions = true,
+   Callback = function(Options)
+       Settings.SelectedEntities = {}
+       for _, entityName in ipairs(Options) do
+           Settings.SelectedEntities[entityName] = true
+       end
+   end,
 })
 
-local list = {}
-for _, v in Settings.SelectedEntities do
-    list[v] = true 
-end
-Options.EntityDropdown:SetValue(list)
-
-EntityGroupBox:AddToggle("AutoFarmEnabled", {
-    Text = "Auto Kill Selected",
-    Tooltip = "Automatically kill selected entities",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.AutoFarmEnabled = Value
-        if Value then
-            Settings.AutoFarmClosestEnabled = false
-            Toggles.AutoFarmClosestEnabled:SetValue(false)
-        end
-    end,
+MainTab:CreateToggle({
+   Name = "Auto Kill Selected",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.AutoFarmEnabled = Value
+       if Value then Settings.AutoFarmClosestEnabled = false end
+   end,
 })
 
-EntityGroupBox:AddSlider("YOffsetSlider", {
-    Text = "YOffset",
-    Default = Settings.YOffset,
-    Min = 0,
-    Max = 100,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        Settings.YOffset = Value
-    end,
+MainTab:CreateSlider({
+   Name = "Y Offset",
+   Range = {0, 100},
+   Increment = 1,
+   CurrentValue = Settings.YOffset,
+   Callback = function(Value) Settings.YOffset = Value end,
 })
 
-EntityGroupBox:AddSlider("XOffsetSlider", {
-    Text = "XOffset",
-    Default = Settings.XOffset,
-    Min = 0,
-    Max = 10,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        Settings.XOffset = Value
-    end,
+MainTab:CreateSlider({
+   Name = "X Offset",
+   Range = {0, 10},
+   Increment = 1,
+   CurrentValue = Settings.XOffset,
+   Callback = function(Value) Settings.XOffset = Value end,
 })
 
-local HiveGroupBox = Tabs.Main:AddLeftGroupbox("Hive", "zap")
+local HiveSection = MainTab:CreateSection("Hive")
 
-HiveGroupBox:AddLabel("Current Level: 0", true, "CurrentHiveLevel")
+local HiveLabel = MainTab:CreateLabel("Current Level: 0")
 
-HiveGroupBox:AddToggle("AutoHiveFarmEnabled", {
-    Text = "Farm Enabled",
-    Tooltip = "Auto-farm closest entities and expand map until Light Source reaches target level",
-    Default = false,
-    
-    Callback = function(Value)
-        HiveModule._enabled = Value
-    end,
+MainTab:CreateToggle({
+   Name = "Auto Hive Farm",
+   CurrentValue = false,
+   Callback = function(Value)
+       HiveModule._enabled = Value
+   end,
 })
 
 do
     local levelLabel = workspace.Map.Chunks.BikiniBottom.ConchStreet.LIGHT_SOURCE.Core.LightSourceBillboard.LightSourceDisplay.Level
-    
     local function updateDisplay()
-        if Library.Labels.CurrentHiveLevel then
+        if HiveLabel then
             local currentLevel = HiveModule:GetCurrentLevel()
             local maxLevel = HiveModule:GetMaxLevel()
-            
             if HiveModule._enabled then
-                Library.Labels.CurrentHiveLevel:SetText("Current Level: " .. currentLevel .. " / " .. maxLevel .. " (Farming)")
+                HiveLabel:Set("Current Level: " .. currentLevel .. " / " .. maxLevel .. " (Farming)")
             else
-                Library.Labels.CurrentHiveLevel:SetText("Current Level: " .. currentLevel .. " / " .. maxLevel)
+                HiveLabel:Set("Current Level: " .. currentLevel .. " / " .. maxLevel)
             end
         end
     end
-    
     updateDisplay()
-    
-    MainTrove:Connect(levelLabel:GetPropertyChangedSignal("Text"), function()
-        updateDisplay()
-    end)
+    MainTrove:Connect(levelLabel:GetPropertyChangedSignal("Text"), function() updateDisplay() end)
 end
-
-local ItemsGroupBox = Tabs.Main:AddRightGroupbox("Items", "boxes")
 
 local GetItems = LPH_JIT_MAX(function()
     local items = {}
-    
-    for _, itemData in ItemsToolkit.GetAllItems() do
-        table.insert(items, itemData.ReferenceName)
-    end
-    
+    for _, itemData in ipairs(ItemsToolkit.GetAllItems()) do table.insert(items, itemData.ReferenceName) end
     table.sort(items)
     return items
 end)
 
-ItemsGroupBox:AddDropdown("ItemDropdown", {
-    Values = GetItems(),
-    Default = 1,
-    Multi = true,
-    Text = "Select Items to Bring",
-    Tooltip = "Choose which items to bring",
-    Searchable = true,
-    
-    Callback = function(Value)
-        Settings.SelectedBring = Value
-    end,
+ItemsTab:CreateSection("Item Management")
+
+ItemsTab:CreateDropdown({
+   Name = "Select Items to Bring",
+   Options = GetItems(),
+   CurrentOption = {},
+   MultipleOptions = true,
+   Callback = function(Options)
+       Settings.SelectedBring = {}
+       for _, v in ipairs(Options) do Settings.SelectedBring[v] = true end
+   end,
 })
 
-Options.ItemDropdown:SetValue(Settings.SelectedBring)
-
-ItemsGroupBox:AddButton({
-	Text = "Select All",
-	Func = function()
-        local allItems = {}
-        for _, itemName in GetItems() do
-            allItems[itemName] = true
-        end
-        Options.ItemDropdown:SetValue(allItems)
-    end,
-	Tooltip = "Select all items in dropdown",
+ItemsTab:CreateButton({
+   Name = "Bring All Selected Items",
+   Callback = function() ItemModule:BringItems(Settings.SelectedBring) end,
 })
 
-ItemsGroupBox:AddButton({
-	Text = "Reset",
-	Func = function()
-        Options.ItemDropdown:SetValue({})
-    end,
-	Tooltip = "Deselect all items",
+ItemsTab:CreateButton({
+   Name = "TP Items to Processor",
+   Callback = function()
+       local selectedItems = {}
+       for k, _ in pairs(Settings.SelectedBring) do table.insert(selectedItems, k) end
+       if #selectedItems > 0 then ItemModule:TeleportItemsByName(selectedItems, "MaterialProcessor") end
+   end,
 })
-
-ItemsGroupBox:AddButton({
-	Text = "Bring All Selected",
-	Func = function()
-        ItemModule:BringItems(Settings.SelectedBring)
-    end,
-	Tooltip = "Bring the selected items",
-})
-
-ItemsGroupBox:AddButton({
-	Text = "TP Items to Processor",
-	Func = function()
-        local selectedItems = Options.ItemDropdown.Value
-        if selectedItems and next(selectedItems) then
-            ItemModule:TeleportItemsByName(selectedItems, "MaterialProcessor")
-        end
-    end,
-	Tooltip = "Teleport selected items to Material Processor",
-})
-
-local ResidentGroupBox = Tabs.Main:AddRightGroupbox("Residents", "users")
 
 local GetResidents = LPH_JIT_MAX(function()
     local residents = {}
-    
-    for _, residentData in ResidentData do
-        table.insert(residents, residentData.ReferenceName)
-    end
-    
+    for _, residentData in pairs(ResidentData) do table.insert(residents, residentData.ReferenceName) end
     table.sort(residents)
     return residents
 end)
 
-ResidentGroupBox:AddDropdown("ResidentDropdown", {
-    Values = GetResidents(),
-    Default = 1,
-    Multi = true,
-    Text = "Select Residents",
-    Tooltip = "Choose which residents to bring",
-    Searchable = true,
-    
-    Callback = function(Value)
-        Settings.SelectedResidents = Value
-    end,
+ItemsTab:CreateSection("Resident Management")
+
+ItemsTab:CreateDropdown({
+   Name = "Select Residents",
+   Options = GetResidents(),
+   CurrentOption = {},
+   MultipleOptions = true,
+   Callback = function(Options)
+       Settings.SelectedResidents = {}
+       for _, v in ipairs(Options) do Settings.SelectedResidents[v] = true end
+   end,
 })
 
-Settings.SelectedResidents = Settings.SelectedResidents or {}
-Options.ResidentDropdown:SetValue(Settings.SelectedResidents)
-
-ResidentGroupBox:AddButton({
-    Text = "Select All",
-    Func = function()
-        local allResidents = {}
-        for _, residentName in GetResidents() do
-            allResidents[residentName] = true
-        end
-        Options.ResidentDropdown:SetValue(allResidents)
-    end,
-    Tooltip = "Select all residents in dropdown",
+ItemsTab:CreateButton({
+   Name = "Bring All Selected Residents",
+   Callback = function() ResidentModule:BringResidents(Settings.SelectedResidents) end,
 })
 
-ResidentGroupBox:AddButton({
-    Text = "Reset",
-    Func = function()
-        Options.ResidentDropdown:SetValue({})
-    end,
-    Tooltip = "Deselect all residents",
+ItemsTab:CreateButton({
+   Name = "TP Residents to Processor",
+   Callback = function()
+       local selectedResidents = {}
+       for k, _ in pairs(Settings.SelectedResidents) do table.insert(selectedResidents, k) end
+       if #selectedResidents > 0 then ResidentModule:TeleportResidentsByName(selectedResidents) end
+   end,
 })
 
-ResidentGroupBox:AddButton({
-    Text = "Bring All Selected",
-    Func = function()
-        ResidentModule:BringResidents(Settings.SelectedResidents)
-    end,
-    Tooltip = "Bring the selected residents",
-})
+ItemsTab:CreateLabel("Note: To bring Sandy you need to kill hibernation Sandy first.")
 
-ResidentGroupBox:AddButton({
-    Text = "TP Residents to Processor",
-    Func = function()
-        local selectedResidents = Options.ResidentDropdown.Value
-        if selectedResidents and next(selectedResidents) then
-            ResidentModule:TeleportResidentsByName(selectedResidents)
-        end
-    end,
-    Tooltip = "Teleport selected residents to Material Processor",
-})
+CraftTab:CreateSection("Auto Crafting")
 
-ResidentGroupBox:AddLabel("SecondTestLabel", {
-	Text = "To bring sandy you need to kill hibernation sandy first",
-	DoesWrap = true,
-})
+local CraftLabel = CraftTab:CreateLabel("Status: Idle")
 
-local TeleportGroupBox = Tabs.Main:AddLeftGroupbox("Teleport", "locate-fixed")
+function AutoCraftModule:UpdateStatus(text)
+    if CraftLabel then CraftLabel:Set(text) end 
+end
 
-TeleportGroupBox:AddButton({
-	Text = "TP Material Processor",
-	Func = function()
-        TeleportModule:TeleportPlayer("MaterialProcessor")
-    end,
-	Tooltip = "Teleport to Material Processor",
-})
-
-local MiscGroupBox = Tabs.Main:AddRightGroupbox("Misc", "settings")
-
-MiscGroupBox:AddToggle("AutoEatEnabled", {
-    Text = "Auto Eat",
-    Tooltip = "Automatically eat consumables when health is low",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.AutoEatEnabled = Value
-        
-        if Value and PlayerGui.PlayerAttributesUI.PlayerAttributes.Bars.Hunger.Visible then
-            AutoEatModule:TryEat()
-        end
-    end,
-})
-
-MiscGroupBox:AddToggle("InstantOpenChests", {
-    Text = "Instant Open Chests",
-    Tooltip = "Remove hold duration from all chests",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.InstantOpenChests = Value
-        ChestModule:SetInstantOpen(Value)
-    end,
-})
-
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
-
-MenuGroup:AddToggle("KeybindMenuOpen", {
-    Default = Library.KeybindFrame.Visible,
-    Text = "Open Keybind Menu",
-    Callback = function(value)
-        Library.KeybindFrame.Visible = value
-    end,
-})
-
-MenuGroup:AddToggle("ShowCustomCursor", {
-    Text = "Custom Cursor",
-    Default = true,
-    Callback = function(Value)
-        Library.ShowCustomCursor = Value
-    end,
-})
-
-MenuGroup:AddDropdown("NotificationSide", {
-    Values = { "Left", "Right" },
-    Default = "Right",
-    Text = "Notification Side",
-    Callback = function(Value)
-        Library:SetNotifySide(Value)
-    end,
-})
-
-local CraftingGroupBox = Tabs.Main:AddLeftGroupbox("Crafting", "hammer")
-
-
-CraftingGroupBox:AddLabel("AutoCraftStatus", {
-    Text = "Status: Idle",
-    DoesWrap = true,
-})
-
-CraftingGroupBox:AddToggle("AutoCraftEnabled", {
-    Text = "Auto Craft",
-    Tooltip = "Automatically gather materials and craft items",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.AutoCraftEnabled = Value
-    end,
+CraftTab:CreateToggle({
+   Name = "Auto Craft Enabled",
+   CurrentValue = false,
+   Callback = function(Value) Settings.AutoCraftEnabled = Value end,
 })
 
 local GetCraftableItems = LPH_JIT_MAX(function()
     local items = {}
-    
-    for itemName in CraftingData do
-        table.insert(items, itemName)
-    end
-    
+    for itemName in pairs(CraftingData) do table.insert(items, itemName) end
     table.sort(items)
     return items
 end)
 
-CraftingGroupBox:AddDropdown("CraftItemDropdown", {
-    Values = GetCraftableItems(),
-    Multi = true,
-    Text = "Select Items to Craft",
-    Tooltip = "Choose which items to auto craft",
-    Searchable = true,
-    
-    Callback = function(Value)
-        Settings.SelectedCraftItems = Value
-    end,
+CraftTab:CreateDropdown({
+   Name = "Select Items to Craft",
+   Options = GetCraftableItems(),
+   CurrentOption = {},
+   MultipleOptions = true,
+   Callback = function(Options)
+       Settings.SelectedCraftItems = {}
+       for _, v in ipairs(Options) do Settings.SelectedCraftItems[v] = true end
+   end,
 })
 
-CraftingGroupBox:AddButton({
-	Text = "Reset",
-	Func = function()
-        Options.CraftItemDropdown:SetValue({})
-    end,
-	Tooltip = "Deselect all items",
+CraftTab:CreateSection("Movement & Utilities")
+
+CraftTab:CreateToggle({
+   Name = "Fly Enabled",
+   CurrentValue = false,
+   Callback = function(Value) Settings.Fly.Enabled = Value end,
 })
 
-local MovementGroupBox = Tabs.Main:AddLeftGroupbox("Movement", "move")
-
-MovementGroupBox:AddToggle("FlyEnabled", {
-    Text = "Fly",
-    Tooltip = "Enables fly mode with WASD controls",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.Fly.Enabled = Value
-        if Value then
-            Settings.WalkSpeed.Enabled = false
-            Toggles.WalkSpeedEnabled:SetValue(false)
-        end
-    end,
+CraftTab:CreateSlider({
+   Name = "Fly Speed",
+   Range = {10, 200},
+   Increment = 1,
+   CurrentValue = Settings.Fly.Speed,
+   Callback = function(Value) Settings.Fly.Speed = Value end,
 })
 
-MovementGroupBox:AddSlider("FlySpeed", {
-    Text = "Fly Speed",
-    Default = 50,
-    Min = 10,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    
-    Callback = function(Value)
-        Settings.Fly.Speed = Value
-    end,
+CraftTab:CreateToggle({
+   Name = "Walk Speed Enabled",
+   CurrentValue = false,
+   Callback = function(Value) Settings.WalkSpeed.Enabled = Value end,
 })
 
-MovementGroupBox:AddToggle("WalkSpeedEnabled", {
-    Text = "Walk Speed",
-    Tooltip = "Modifies walk speed",
-    Default = false,
-    
-    Callback = function(Value)
-        Settings.WalkSpeed.Enabled = Value
-        if Value then
-            Settings.Fly.Enabled = false
-            Toggles.FlyEnabled:SetValue(false)
-        end
-    end,
+CraftTab:CreateSlider({
+   Name = "Walk Speed Value",
+   Range = {16, 200},
+   Increment = 1,
+   CurrentValue = Settings.WalkSpeed.Speed,
+   Callback = function(Value) Settings.WalkSpeed.Speed = Value end,
 })
 
-MovementGroupBox:AddSlider("WalkSpeedValue", {
-    Text = "Walk Speed",
-    Default = 50,
-    Min = 16,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    
-    Callback = function(Value)
-        Settings.WalkSpeed.Speed = Value
-    end,
+CraftTab:CreateToggle({
+   Name = "Auto Eat",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.AutoEatEnabled = Value
+       if Value and PlayerGui.PlayerAttributesUI.PlayerAttributes.Bars.Hunger.Visible then
+           AutoEatModule:TryEat()
+       end
+   end,
 })
 
-local CreditsGroupBox = Tabs.Main:AddRightGroupbox("Credits", "info")
-
-CreditsGroupBox:AddLabel("Developer: Yoshin", false)
-
-MenuGroup:AddDivider()
-
-MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { 
-    Default = "RightShift", 
-    NoUI = true, 
-    Text = "Menu keybind" 
+CraftTab:CreateToggle({
+   Name = "Instant Open Chests",
+   CurrentValue = false,
+   Callback = function(Value)
+       Settings.InstantOpenChests = Value
+       ChestModule:SetInstantOpen(Value)
+   end,
 })
 
-MenuGroup:AddButton("Unload", function()
-    getgenv().executed = false
-    Library:Unload()
+CraftTab:CreateButton({
+   Name = "TP to Material Processor",
+   Callback = function() TeleportModule:TeleportPlayer("MaterialProcessor") end,
+})
+
+CraftTab:CreateSection("System")
+
+CraftTab:CreateButton({
+   Name = "Unload Script",
+   Callback = function()
+       MainTrove:Clean()
+       Rayfield:Destroy()
+       getgenv().executed = false
+       if CoreGui:FindFirstChild("PradaxcaToggle") then
+           CoreGui.PradaxcaToggle:Destroy()
+       end
+   end,
+})
+
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+
+if CoreGui:FindFirstChild("PradaxcaToggle") then
+    CoreGui.PradaxcaToggle:Destroy()
+end
+
+local PradaxcaUI = Instance.new("ScreenGui")
+PradaxcaUI.Name = "PradaxcaToggle"
+PradaxcaUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+PradaxcaUI.Parent = CoreGui
+
+local FloatingButton = Instance.new("ImageButton")
+FloatingButton.Name = "LogoButton"
+FloatingButton.Size = UDim2.new(0, 45, 0, 45)
+FloatingButton.Position = UDim2.new(0.02, 0, 0.1, 0)
+FloatingButton.BackgroundColor3 = Color3.fromRGB(255, 105, 180) 
+FloatingButton.BorderSizePixel = 0
+FloatingButton.ClipsDescendants = true
+FloatingButton.Parent = PradaxcaUI
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = FloatingButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 192, 203)
+UIStroke.Thickness = 2
+UIStroke.Parent = FloatingButton
+
+local LogoImage = Instance.new("ImageLabel")
+LogoImage.Size = UDim2.new(1, 0, 1, 0)
+LogoImage.BackgroundTransparency = 1
+LogoImage.Image = "rbxassetid://114704837418228" 
+LogoImage.Parent = FloatingButton
+
+FloatingButton.MouseButton1Click:Connect(function()
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.K, false, game)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.K, false, game)
 end)
 
-Library.ToggleKeybind = Options.MenuKeybind
+local dragging, dragInput, dragStart, startPos
 
-Library:OnUnload(function()
-    MainTrove:Clean()
+FloatingButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FloatingButton.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
 end)
 
-Library:Notify({
-    Title = "Script loaded!",
-    Description = "Sucessfully loaded script",
-    Time = 5,
-})
+FloatingButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
 
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        TweenService:Create(FloatingButton, TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
+            Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        }):Play()
+    end
+end)
 
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-
-ThemeManager:SetFolder("AutoFarmScript")
-SaveManager:SetFolder("AutoFarmScript/configs")
-
-SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
-
-SaveManager:LoadAutoloadConfig()
+Rayfield:LoadConfiguration()
